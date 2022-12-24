@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env zsh
 ################################################################################
 # pyenv + virtualenv install script for debian/ubuntu linux
 # system requirements: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
@@ -21,7 +21,7 @@ export PATH="$PYENV_ROOT/bin:$PATH"
 if command -v pyenv 1>/dev/null 2>&1; then
     eval "$(pyenv init -)"
     eval "$(pyenv virtualenv-init -)" # Enable auto-activation of virtualenvs
-fi' >> ~/.bashrc
-    source ~/.bashrc
+fi' >> ~/.zshrc
+    source ~/.zshrc
     exec "$SHELL"
 fi
