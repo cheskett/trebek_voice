@@ -19,6 +19,7 @@ import os
 # Not perfect but 'hopefully' transciptions
 # shouldn't have that bad of formatting errors
 num_pattern = r'[\d]+(?:,?[\d]{3})*(?:\.[\d]+)?'
+year_pattern = r'[12][0-9]{3}'
 
 
 # 
@@ -109,12 +110,21 @@ def normalize_numbers(text):
     '''
     Normalize a string of text by spelling out numbers.
     '''
-    slices = [(m.start(), m.end()) for m in re.finditer(num_pattern, text)]
-    normalizations = [engine.number_to_words(text[slice(*s)]) for s in slices]
-    normalized = text
+    slices = [(m.start(), m.end()) for m in re.finditer(year_pattern, text)]
+    if len(slices) > 0:
+        print(text)
+    normalizations = [engine.number_to_words(text[slice(*s)], group=2, zero="oh").replace(",","") for s in slices]
+    normalized1 = text
     for s, norm in zip(slices, normalizations):
-        normalized = normalized.replace(text[slice(*s)], norm, 1)
-    return normalized
+        normalized1 = normalized1.replace(text[slice(*s)], norm, 1)
+        print(normalized1)
+        
+    slices = [(m.start(), m.end()) for m in re.finditer(num_pattern, normalized1)]
+    normalizations = [engine.number_to_words(normalized1[slice(*s)]) for s in slices]
+    normalized2 = normalized1
+    for s, norm in zip(slices, normalizations):
+        normalized2 = normalized2.replace(normalized1[slice(*s)], norm, 1)
+    return normalized2
                
     
 def normalize_titles(text):
@@ -133,7 +143,7 @@ def troublesome_log(text, idx):
     for c in troublesome:
         if c in text:
             with open(args.log_name, 'a') as f:
-                f.write("Troublesome character {c} on line {idx}", '\n')
+                f.write("Troublesome character {c} on line {idx}\n")
 
 
 
@@ -148,13 +158,15 @@ lines = read_csv()
 
 # Normalize each line. Enter normalized text into second column
 for idx, line in enumerate(lines):
-    filename, text = line
+    filename, text, text2 = line
 
     normalized_text = normalize_numbers(text)
     normalized_text = normalize_titles(normalized_text)
   
     if args.log_troublesome:
         troublesome_log(text, idx)
+    # Remove text2
+    lines[idx].pop()
     lines[idx].append(normalized_text)
 
 # Write to file
