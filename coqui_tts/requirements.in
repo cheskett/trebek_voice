@@ -1,1 +1,2 @@
 git+https://github.com/coqui-ai/TTS.git@main#egg=tts
+git+https://github.com/openai/whisper.git

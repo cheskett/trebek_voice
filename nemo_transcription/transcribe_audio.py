@@ -30,6 +30,7 @@ from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils.transcribe_utils import transcribe_partial_audio
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
+from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 
@@ -55,6 +56,8 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   overwrite_transcripts: Bool which when set allowes repeated transcriptions to overwrite previous results.
 
   rnnt_decoding: Decoding sub-config for RNNT. Refer to documentation for specific values.
+  
+  restore_punc: Run pretrained PunctuationCapitalizationModel on transcribed data to restore punctuation
 
 # Usage
 ASR model can be specified by either "model_path" or "pretrained_name".
@@ -74,7 +77,8 @@ python transcribe_speech.py \
     cuda=0 \
     amp=True \
     append_pred=False \
-    pred_name_postfix=""
+    pred_name_postfix="" \
+    restore_punc=False
 """
 
 
@@ -88,7 +92,7 @@ class TranscriptionConfig:
 
     # General configs
     output_filename: Optional[str] = None
-    batch_size: int = 32
+    batch_size: int = 16
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
@@ -111,6 +115,9 @@ class TranscriptionConfig:
 
     # Decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
+    
+    # Restore punctiation and capitalization
+    restore_punc: bool = False
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -265,14 +272,30 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 )
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")
-
-    logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
-
+        
     # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
     if type(transcriptions) == tuple and len(transcriptions) == 2:
         transcriptions = transcriptions[0]
 
+    # Restore punctiation if set
+    if (cfg.restore_punc):
+        logging.info("Restoring punctuation and capitalization...")
+        # convert hypothesis into str list
+        str_list = list(map(lambda x: str(x.text), transcriptions))
+                        
+        punc_model = PunctuationCapitalizationModel.from_pretrained(model_name="punctuation_en_bert")
+        logging.info("Loaded nlp model, running...")
+        str_list = punc_model.add_punctuation_capitalization(str_list, batch_size=cfg.batch_size)
+        
+        # Set text field in original hypothesis
+        for idx, transcription in enumerate(transcriptions):
+            transcription.text = str_list[idx]
+            logging.info(transcription.text)
+                        
+        logging.info("Finished restoring punctuation and capitalization")
+        
     # write audio transcriptions
+    logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
 
     if cfg.append_pred:
         logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
